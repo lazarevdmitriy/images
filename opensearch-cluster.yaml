@@ -1,0 +1,195 @@
+apiVersion: opensearch.opster.io/v1
+kind: OpenSearchCluster
+metadata:
+  annotations:
+  finalizers:
+  - Opster
+  generation: 8
+  name: opensearch-cluster
+  namespace: service
+spec:
+  bootstrap:
+    resources: {}
+  confMgmt: {}
+  dashboards:
+    additionalConfig:
+      logging.verbose: "false"
+      opensearch.requestHeadersAllowlist: '[''Authorization'', ''security_tenant'',
+        ''x-forwarded-for'', ''x-forwarded-by'']'
+      opensearch.ssl.verificationMode: none
+      opensearch_security.auth.multiple_auth_enabled: "true"
+      opensearch_security.auth.type: '[''basicauth'', ''openid'']'
+      opensearch_security.multitenancy.enabled: "false"
+      opensearch_security.openid.base_redirect_url: https://l0g.example.com
+      opensearch_security.openid.client_id: f2a32766-d4d4-47a1-90eb-16fba3864434
+      opensearch_security.openid.client_secret: ${AD_APPLICATION_CLIENT_SECRET}
+      opensearch_security.openid.connect_url: https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0/.well-known/openid-configuration
+      opensearch_security.openid.scope: email offline_access openid profile
+      opensearch_security.readonly_mode.roles: '[''dashboards_read_only'']'
+      opensearch_security.ui.openid.login.buttonname: Sign in with Azure Active Directory
+    enable: true
+    env:
+    - name: AD_APPLICATION_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          key: client_secret
+          name: opensearch-dashboards-ad-application-client-secret
+    opensearchCredentialsSecret:
+      name: opensearch-credentials-dashboards-user
+    replicas: 1
+    resources:
+      limits:
+        cpu: 3
+        memory: 6Gi
+      requests:
+        cpu: 2
+        memory: 4Gi
+    service:
+      type: ClusterIP
+    tls:
+      caSecret: {}
+      enable: true
+      generate: true
+      secret: {}
+    tolerations:
+    - effect: NoSchedule
+      key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+    version: 2.8.0
+  general:
+    additionalConfig:
+      indices.query.bool.max_clause_count: "4096"
+    httpPort: 9200
+    monitoring: {}
+    pluginsList:
+    - repository-s3
+    serviceName: opensearch-cluster
+    setVMMaxMapCount: true
+    version: 2.8.0
+  initHelper:
+    resources: {}
+  nodePools:
+  - component: masters
+    diskSize: 10Gi
+    jvm: -Xms2G -Xmx2G
+    persistence:
+      pvc:
+        accessModes:
+        - ReadWriteOnce
+        storageClass: managed-csi
+    replicas: 3
+    resources:
+      limits:
+        cpu: 3
+        memory: 6Gi
+      requests:
+        cpu: 2
+        memory: 4Gi
+    roles:
+    - cluster_manager
+    tolerations:
+    - effect: NoSchedule
+      key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+  - additionalConfig:
+      node.attr.temp: hot
+    component: hot-nodes
+    diskSize: 20Gi
+    jvm: -Xms2G -Xmx2G
+    persistence:
+      pvc:
+        accessModes:
+        - ReadWriteOnce
+        storageClass: managed-csi
+    replicas: 3
+    resources:
+      limits:
+        cpu: 3
+        memory: 6Gi
+      requests:
+        cpu: 2
+        memory: 4Gi
+    roles:
+    - data
+    - ingest
+    tolerations:
+    - effect: NoSchedule
+      key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+  - additionalConfig:
+      node.attr.temp: warm
+    component: warm-nodes
+    diskSize: 40Gi
+    jvm: -Xms2G -Xmx2G
+    persistence:
+      pvc:
+        accessModes:
+        - ReadWriteOnce
+        storageClass: managed-csi-os-warm-nodes
+    replicas: 3
+    resources:
+      limits:
+        cpu: 3
+        memory: 6Gi
+      requests:
+        cpu: 2
+        memory: 4Gi
+    roles:
+    - data
+    tolerations:
+    - effect: NoSchedule
+      key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+  - additionalConfig:
+      node.attr.temp: cool
+    component: cool-nodes
+    diskSize: 60Gi
+    jvm: -Xms2G -Xmx2G
+    persistence:
+      pvc:
+        accessModes:
+        - ReadWriteOnce
+        storageClass: azureblob-os-cool-nodes
+    replicas: 3
+    resources:
+      limits:
+        cpu: 3
+        memory: 6Gi
+      requests:
+        cpu: 2
+        memory: 4Gi
+    roles:
+    - data
+    tolerations:
+    - effect: NoSchedule
+      key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+  security:
+    config:
+      adminCredentialsSecret:
+        name: opensearch-credentials-admin-user
+      adminSecret: {}
+      securityConfigSecret:
+        name: opensearch-cluster-security-config
+    tls:
+      http:
+        caSecret: {}
+        generate: true
+        secret: {}
+      transport:
+        caSecret: {}
+        generate: true
+        perNode: true
+        secret: {}
+status:
+  componentsStatus:
+  - component: Restarter
+    status: Finished
+  initialized: true
+  phase: RUNNING
+  version: 2.8.0
